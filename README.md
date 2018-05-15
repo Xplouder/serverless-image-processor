@@ -1,2 +1,2 @@
-# serverless-image-processor
-SIP - Serverless Image Processor
+# SIP - Serverless Image Processor
+temporary description :kappa:
