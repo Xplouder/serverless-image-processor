@@ -1,0 +1,7 @@
+{
+  "name": "serverless-image-processor",
+  "version": "0.0.1",
+  "dependencies": {
+    "@google-cloud/storage": "^1.7.0"
+  }
+}
