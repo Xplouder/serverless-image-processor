@@ -1,0 +1,40 @@
+version: "3.6"
+
+services:
+
+  node:
+    stdin_open: true
+    tty: true
+    build:
+      context: ./..
+      dockerfile: ./docker/dockerfiles/Dockerfile_node_alpine
+      args:
+        # Optional (1) ---------------------
+        - USER_ID=${USER_ID:-0}
+        - GROUP_USER_ID=${GROUP_USER_ID:-0}
+        - USER_NAME=${USER_NAME:-root}
+    # Optional (1) -------------------------
+    user: ${USER_ID:-0}:${GROUP_USER_ID:-0}
+    # --------------------------------------
+    volumes:
+      # [Project]
+      - type: bind
+        source: ./..
+        target: /code
+      # [SSH]
+      - type: bind
+        source: ${SSH_FOLDER_PATH:-~/.ssh}
+        # TODO: fix! If user is root, should be /root/.ssh instead of "/home/root/.ssh"
+        # Note: if not root `/home/${USER_NAME:-root}/.ssh`, if root `/home/root/.ssh`
+        target: /home/${USER_NAME:-root}/.ssh
+        read_only: true
+      # ------------------------------------------------------------------
+    networks:
+      stack_network:
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+networks:
+  stack_network:
+
+# (1) Workaround for linux mapping user id and user group id mapping, ignore this block if it is not your case

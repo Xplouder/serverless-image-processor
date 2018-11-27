@@ -1,67 +1,46 @@
 // REFERENCES:
-// DATASTORE + FUNSTIONS example
+// DATASTORE + FUNCTIONS example
 //	- https://github.com/GoogleCloudPlatform/nodejs-docs-samples/blob/master/functions/datastore/index.js
 //  - https://cloud.google.com/functions/docs/tutorials/imagemagick
 
-var storage = require('@google-cloud/storage')();
-var myBucket = storage.bucket('serverless-image-processor.appspot.com');
-var Stream = require('stream').Transform;
+const {Storage} = require('@google-cloud/storage');
+const axios = require('axios');
 
-var http = require('http');
-var fs = require('fs');
+function generateHash() {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
 
-var download = function(url, cb) {
-    var hash = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    console.log('Starting download file ' + hash);
-    var request = http.get(url, function(response) {
+/**
+ *
+ * @param hash
+ * @param {ArrayBuffer} data
+ * @return {Promise<void>}
+ */
+async function saveFile(hash, data) {
+    const storage = new Storage();
+    const file = await storage
+        .bucket('serverless-image-processor.appspot.com')
+        .file("/images/" + hash + ".jpg");
 
-        var data = new Stream();
-
-        response.on('data', function(chunk) {
-            console.log('Chunk received');
-            data.push(chunk);
-        });
-
-        response.on('end', function () {
-            console.log('Download ended');
-            var file = myBucket.file("/images/" + hash + ".jpg");
-            file.save(data.read(), {}, function(err) {
-                if (!err) {
-                    console.log('File saved successfully');
-                    cb();
-                    console.log('File stats:');
-                    file.makePublic();
-                    return;
-                }
-                cb('File NOT written successfully: ' + err);
-                console.log('File NOT saved successfully');
-            });
-        });
-
-    });
+    try {
+        // Options available: https://cloud.google.com/nodejs/docs/reference/storage/2.0.x/File#createWriteStream
+        await file.save(data, {'public': true});
+        console.log(`File "${hash}" saved successfully`);
+        console.log('File stats:' + JSON.stringify(await file.getMetadata()));
+    } catch (e) {
+        console.log('File NOT saved successfully');
+        throw e;
+    }
 }
 
 
-
-/*storage.save(entity).then(function () {
-
-  var hash = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  var file = fs.createWriteStream("/images/" + hash + ".jpg");
-  var request = http.get(url, function(response) {
-    response.pipe(file);
-    file.on('finish', function() {
-      file.close(cb);
+async function downloadFile(url) {
+    return await axios({
+        url: url,
+        method: 'GET',
+        responseType: 'blob',
     });
-  });
-
-
-  return res.status(200).send("Entity ".concat(key.path.join('/'), " saved."));
-}).catch(function (err) {
-  console.error(err);
-  return Promise.reject(err);
-});*/
-
-
+}
 
 
 /**
@@ -70,26 +49,31 @@ var download = function(url, cb) {
  * @param {!Object} req Cloud Function request context.
  * @param {!Object} res Cloud Function response context.
  */
-exports.helloWorld = (req, res) => {
+async function helloWorld(req, res) {
+    try {
 
-    // Executed on every requst for test purpose
-    download("http://i3.ytimg.com/vi/J---aiyznGQ/mqdefault.jpg", function (errorMessage){
-        if(errorMessage){
-            console.log('HTTP Code 400 sent');
-            res.status(400).send(errorMessage);
-            return;
-        }
+        // const util = require('util');
+        // console.log(JSON.stringify(Object.keys(req)));
+        // res.status(200).send(JSON.stringify(Object.keys(req)));
+
+
+        // Executed on every request for test purpose
+        const response = await downloadFile("http://i3.ytimg.com/vi/J---aiyznGQ/mqdefault.jpg");
+        await saveFile(generateHash(), response.data);
         console.log('HTTP Code 200 sent');
         res.status(200).send("File written successfully");
-    });
+    } catch (e) {
+        console.log('HTTP Code 400 sent');
+        res.status(400).send(
+            {
+                'datetime': (new Date()).toISOString(),
+                'name': e.name,
+                'error': e.message,
+                'fileName': e.fileName,
+                'lineNumber': e.lineNumber,
+            }
+        );
+    }
+}
 
-    // Example input: {"message": "Hello!"}
-    /*if (req.body.message === undefined) {
-      // This is an error case, as "message" is required.
-      res.status(400).send('No message defined!');
-    } else {
-      // Everything is okay.
-      console.log(req.body.message);
-      res.status(200).send('Success: ' + req.body.message);
-    }*/
-};
+exports.helloWorld = helloWorld;
